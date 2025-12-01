@@ -1,0 +1,13 @@
+mtm4651-assignment/
+
+
+data/
+
+
+__pycache__/
+*.pyc
+*.pyo
+
+
+.ipynb_checkpoints/
+
