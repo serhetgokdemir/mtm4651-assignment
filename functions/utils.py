@@ -286,6 +286,7 @@ def analyze_m_columns(df):
     plt.title('M Columns (Security Matches) Fraud Analysis', fontsize=16, fontweight='bold')
     plt.ylabel('Fraud Rate (%)', fontsize=12)
     plt.xlabel('Feature Name (M1 - M9)', fontsize=12)
+    plt.axhline(df['isFraud'].mean()*100, color='black', linestyle='--', label='Overall Fraud Rate')
     plt.legend(title='Value', loc='upper right')
     plt.grid(axis='y', linestyle='--', alpha=0.7)
 
@@ -671,41 +672,81 @@ def scan_all_bivariate_combinations(df, feature_list, target='isFraud',
 
     return results_df.head(top_n)
 
-
-def visualize_top_combinations(results_df, top_n=20):
+def create_interaction_features_auto(df, top_combos_df, top_n=10, min_fraud_rate=25.0):
     """
-    Visualize top N riskiest combinations from scan results.
-
-    Args:
-        results_df (DataFrame): Results from scan_all_bivariate_combinations
-        top_n (int): Number of top combinations to visualize
+    Otomatik olarak en riskli kombinasyonlardan yeni özellikler oluşturur.
+    
+    Parameters:
+    -----------
+    df : DataFrame
+        Yeni özellikler eklenecek veri seti
+    top_combos_df : DataFrame
+        scan_all_bivariate_combinations() fonksiyonunun çıktısı
+    top_n : int, default=10
+        Kaç tane kombinasyon kullanılacak
+    min_fraud_rate : float, default=15.0
+        Minimum fraud oranı eşiği (%)
+    
+    Returns:
+    --------
+    df : DataFrame
+        Yeni özellikler eklenmiş veri seti
+        
+    Example:
+    --------
+    >>> # Önce scan yap
+    >>> top_combos = scan_all_bivariate_combinations(train_df, categorical_to_scan)
+    >>> 
+    >>> # Sonra otomatik birleştir
+    >>> train_df = create_interaction_features_auto(train_df, top_combos, top_n=15)
     """
-    if len(results_df) == 0:
-        print("No data to visualize!")
-        return
-
-    plot_data = results_df.head(top_n)
-
-    fig, ax = plt.subplots(figsize=(14, 10))
-
-    colors = sns.color_palette('Reds_r', len(plot_data))
-    bars = ax.barh(range(len(plot_data)), plot_data['fraud_rate'], color=colors)
-
-    ax.set_yticks(range(len(plot_data)))
-    ax.set_yticklabels(plot_data['combination'], fontsize=9)
-    ax.set_xlabel('Fraud Rate (%)', fontsize=12)
-    ax.set_title(f'Top {top_n} Riskiest Bivariate Combinations',
-                 fontsize=16, fontweight='bold')
-
-    for i, (bar, count, fraud_rate) in enumerate(zip(bars, plot_data['sample_count'],
-                                                     plot_data['fraud_rate'])):
-        ax.text(bar.get_width() + 1, bar.get_y() + bar.get_height() / 2,
-                f'{fraud_rate:.1f}% (N={count})',
-                va='center', fontsize=8, color='gray')
-
-    ax.grid(axis='x', linestyle='--', alpha=0.3)
-    plt.tight_layout()
-    plt.show()
+    
+    # Filtreleme: Sadece yüksek riskli kombinasyonları al
+    risky_combos = top_combos_df[
+        top_combos_df['fraud_rate'] >= min_fraud_rate
+    ].head(top_n)
+    
+    if len(risky_combos) == 0:
+        print(" Hiçbir kombinasyon eşik değerini geçmiyor!")
+        return df
+    
+    print(f"\n{'='*80}")
+    print(f" Otomatik Özellik Birleştirme Başlıyor...")
+    print(f"{'='*80}")
+    print(f" {len(risky_combos)} kombinasyon işlenecek (fraud rate >= {min_fraud_rate}%)")
+    print()
+    
+    created_features = []
+    
+    for idx, row in risky_combos.iterrows():
+        feat1 = row['feature1']
+        feat2 = row['feature2']
+        fraud_rate = row['fraud_rate']
+        
+        # Yeni özellik adı
+        new_feature_name = f"{feat1}_x_{feat2}"
+        
+        # Eğer özellikler veri setinde varsa birleştir
+        if feat1 in df.columns and feat2 in df.columns:
+            df[new_feature_name] = (
+                df[feat1].astype(str).fillna('missing') + '_' + 
+                df[feat2].astype(str).fillna('missing')
+            )
+            created_features.append(new_feature_name)
+            
+            print(f" {new_feature_name:<40} | Fraud Rate: {fraud_rate:>6.2f}%")
+        else:
+            print(f" {feat1} veya {feat2} bulunamadı, atlanıyor...")
+    
+    print()
+    print(f"{'='*80}")
+    print(f" Toplam {len(created_features)} yeni özellik oluşturuldu!")
+    print(f"{'='*80}\n")
+    
+    # Oluşturulan özelliklerin listesini döndür
+    df.created_interaction_features = created_features
+    
+    return df
 
 
 if __name__ == '__main__':
