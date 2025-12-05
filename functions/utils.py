@@ -537,60 +537,103 @@ def cat_binary_test(df, feature_list, target='isFraud', alpha=0.05, min_category
     return results_df
 
 
-def bivariate_comb_risk(df, feature1, feature2, target='isFraud', min_samples=30):
+def bivariate_comb_risk(df, feature1, feature2, target='isFraud', min_samples=30, show_bar_chart=False):
     """
-    Analyze detailed fraud risk for two-feature combinations with heatmap visualization.
-
-    Args:
-        df (DataFrame): Input dataframe
-        feature1 (str): First feature name
-        feature2 (str): Second feature name
-        target (str): Target variable name
-        min_samples (int): Minimum sample size filter
-
-    Returns:
-        DataFrame: Top 5 riskiest combinations
+    It performs a detailed analysis of the two specified features and draws a heatmap.
+    
+    Parameters:
+    -----------
+    df : DataFrame
+        Analiz edilecek veri seti
+    feature1, feature2 : str
+        Analiz edilecek özellikler
+    target : str, default='isFraud'
+        Hedef değişken
+    min_samples : int, default=30
+        Minimum örnek sayısı filtresi
+    show_bar_chart : bool, default=False
+        Bar grafiğini göster/gizle
     """
+    # Veri hazırlığı
     df_viz = df.copy()
     df_viz[feature1] = df_viz[feature1].astype(str).fillna('Missing')
     df_viz[feature2] = df_viz[feature2].astype(str).fillna('Missing')
-
+    
+    # 1. Ana İstatistik Tablosu
     group = df_viz.groupby([feature1, feature2])[target].agg(['sum', 'count', 'mean']).reset_index()
     group.columns = [feature1, feature2, 'fraud_count', 'total_count', 'fraud_rate']
     group['fraud_rate'] = group['fraud_rate'] * 100
-
+    
+    # Min sample filtresi
     group = group[group['total_count'] >= min_samples].sort_values(by='fraud_rate', ascending=False)
-
-    top_n_cat = 25
-    top_f1 = df_viz[feature1].value_counts().head(top_n_cat).index
-    top_f2 = df_viz[feature2].value_counts().head(top_n_cat).index
-
-    heatmap_data = group[group[feature1].isin(top_f1) & group[feature2].isin(top_f2)]
-    pivot_table = heatmap_data.pivot(index=feature1, columns=feature2, values='fraud_rate')
-
-    fig, axes = plt.subplots(1, 2, figsize=(20, 8))
-
-    sns.heatmap(pivot_table, annot=True, fmt='.1f', cmap='RdYlGn_r', center=5, ax=axes[0])
-    axes[0].set_title(f'Fraud Heatmap: {feature1} vs {feature2} (Top {top_n_cat} Values)', fontsize=14)
-
-    top_risky = group.head(10).sort_values(by='fraud_rate', ascending=True)
-    labels = top_risky[feature1] + " + " + top_risky[feature2]
-
-    bars = axes[1].barh(range(len(top_risky)), top_risky['fraud_rate'],
-                        color=sns.color_palette("Reds", len(top_risky)))
-    axes[1].set_yticks(range(len(top_risky)))
-    axes[1].set_yticklabels(labels)
-    axes[1].set_xlabel('Fraud Rate (%)')
-    axes[1].set_title(f'Top 10 Riskiest Combinations ({feature1} & {feature2})', fontsize=14)
-
-    for bar, count in zip(bars, top_risky['total_count']):
-        axes[1].text(bar.get_width() + 0.5, bar.get_y() + bar.get_height() / 2,
-                     f'N={count}', va='center', fontsize=9, color='black')
-
+    
+    # Heatmap için TÜM geçerli kategorileri kullan
+    pivot_table = group.pivot(index=feature1, columns=feature2, values='fraud_rate')
+    
+    # --- Dinamik Boyutlandırma ---
+    n_rows = len(pivot_table.index)
+    n_cols = len(pivot_table.columns)
+    
+    if show_bar_chart:
+        # İki grafik yan yana
+        fig_width = max(12, n_cols * 0.8) + 8
+        fig_height = max(8, n_rows * 0.5)
+        fig, axes = plt.subplots(1, 2, figsize=(fig_width, fig_height))
+        heatmap_ax = axes[0]
+        bar_ax = axes[1]
+    else:
+        # Sadece heatmap
+        fig_width = max(12, n_cols * 0.8)
+        fig_height = max(8, n_rows * 0.5)
+        fig, heatmap_ax = plt.subplots(1, 1, figsize=(fig_width, fig_height))
+    
+    # --- HEATMAP ---
+    sns.heatmap(
+        pivot_table, 
+        annot=True, 
+        fmt='.1f', 
+        cmap='RdYlGn_r', 
+        center=5, 
+        ax=heatmap_ax,
+        linewidths=0.5,
+        cbar_kws={'label': 'Fraud Rate (%)'}
+    )
+    heatmap_ax.set_title(f'Fraud Heatmap: {feature1} vs {feature2} (All Categories)', 
+                         fontsize=14, fontweight='bold')
+    heatmap_ax.tick_params(axis='x', rotation=45, labelsize=9)
+    heatmap_ax.tick_params(axis='y', labelsize=9)
+    
+    # --- BAR CHART (Opsiyonel) ---
+    if show_bar_chart:
+        top_risky = group.head(15).sort_values(by='fraud_rate', ascending=True)
+        labels = top_risky[feature1].astype(str) + " + " + top_risky[feature2].astype(str)
+        
+        bars = bar_ax.barh(
+            range(len(top_risky)), 
+            top_risky['fraud_rate'], 
+            color=sns.color_palette("Reds", len(top_risky))
+        )
+        bar_ax.set_yticks(range(len(top_risky)))
+        bar_ax.set_yticklabels(labels, fontsize=9)
+        bar_ax.set_xlabel('Fraud Oranı (%)', fontsize=11)
+        bar_ax.set_title(f'En Yüksek Riskli 15 Kombinasyon\n({feature1} & {feature2})', 
+                         fontsize=14, fontweight='bold')
+        
+        # Barların ucuna sayıları yaz
+        for bar, count, fraud_rate in zip(bars, top_risky['total_count'], top_risky['fraud_rate']):
+            bar_ax.text(
+                bar.get_width() + 1, 
+                bar.get_y() + bar.get_height()/2, 
+                f'N={count}\n{fraud_rate:.1f}%', 
+                va='center', 
+                fontsize=8, 
+                color='black'
+            )
+    
     plt.tight_layout()
     plt.show()
-
-    return group.head(5)
+    
+    return group.head(10)
 
 
 def scan_all_bivariate_combinations(df, feature_list, target='isFraud',
