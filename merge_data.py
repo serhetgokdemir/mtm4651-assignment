@@ -5,7 +5,6 @@ import gc
 
 def merge_and_save_data():
 
-    print("Train transaction ve identity")
     train_transaction = pd.read_csv(os.path.join(DATA_PATH, 'train_transaction.csv'))
     train_identity = pd.read_csv(os.path.join(DATA_PATH, 'train_identity.csv'))
     
@@ -25,17 +24,12 @@ def merge_and_save_data():
     print(f"Train Shape: {train_merged.shape}")
     del train_merged
     gc.collect()
-    print("Train işlemi tamamlandı.\n")
 
-    
-    
-    
-    print("Test transaction ve identity okunuyor...")
     test_transaction = pd.read_csv(os.path.join(DATA_PATH, 'test_transaction.csv'))
     test_identity = pd.read_csv(os.path.join(DATA_PATH, 'test_identity.csv'))
     
     
-    print("Test verileri birleştiriliyor (Left Merge)...")
+    print("transaction + identity --> Left Merge")
     test_merged = pd.merge(test_transaction, test_identity, on='TransactionID', how='left')
     
     
