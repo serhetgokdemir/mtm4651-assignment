@@ -722,78 +722,64 @@ def scan_all_bivariate_combinations(df, feature_list, target='isFraud',
 
 def create_interaction_features_auto(df, top_combos_df, top_n=10, min_fraud_rate=25.0):
     """
-    Otomatik olarak en riskli kombinasyonlardan yeni özellikler oluşturur.
-    
+    Automatically creates new features from the riskiest combinations.
+
     Parameters:
     -----------
     df : DataFrame
-        Yeni özellikler eklenecek veri seti
+        Dataset to add new features to
     top_combos_df : DataFrame
-        scan_all_bivariate_combinations() fonksiyonunun çıktısı
+        Output of scan_all_bivariate_combinations() function
     top_n : int, default=10
-        Kaç tane kombinasyon kullanılacak
-    min_fraud_rate : float, default=15.0
-        Minimum fraud oranı eşiği (%)
-    
+        Number of combinations to use
+    min_fraud_rate : float, default=25.0
+        Minimum fraud rate threshold (%)
+
     Returns:
     --------
     df : DataFrame
-        Yeni özellikler eklenmiş veri seti
-        
-    Example:
-    --------
-    >>> # Önce scan yap
-    >>> top_combos = scan_all_bivariate_combinations(train_df, categorical_to_scan)
-    >>> 
-    >>> # Sonra otomatik birleştir
-    >>> train_df = create_interaction_features_auto(train_df, top_combos, top_n=15)
+        Dataset with new interaction features added
     """
-    
-    # Filtreleme: Sadece yüksek riskli kombinasyonları al
+
+    # Filter: Only select high-risk combinations
     risky_combos = top_combos_df[
         top_combos_df['fraud_rate'] >= min_fraud_rate
     ].head(top_n)
-    
+
     if len(risky_combos) == 0:
-        print(" Hiçbir kombinasyon eşik değerini geçmiyor!")
+        print("No combination exceeds the threshold value!")
         return df
-    
-    print(f"\n{'='*80}")
-    print(f" Otomatik Özellik Birleştirme Başlıyor...")
-    print(f"{'='*80}")
-    print(f" {len(risky_combos)} kombinasyon işlenecek (fraud rate >= {min_fraud_rate}%)")
-    print()
-    
+
     created_features = []
-    
+
     for idx, row in risky_combos.iterrows():
         feat1 = row['feature1']
         feat2 = row['feature2']
         fraud_rate = row['fraud_rate']
-        
-        # Yeni özellik adı
+
+        # New feature name
         new_feature_name = f"{feat1}_x_{feat2}"
-        
-        # Eğer özellikler veri setinde varsa birleştir
+
+        # If features exist in the dataset, combine them
         if feat1 in df.columns and feat2 in df.columns:
             df[new_feature_name] = (
-                df[feat1].astype(str).fillna('missing') + '_' + 
+                df[feat1].astype(str).fillna('missing') + '_' +
                 df[feat2].astype(str).fillna('missing')
             )
             created_features.append(new_feature_name)
-            
+
             print(f" {new_feature_name:<40} | Fraud Rate: {fraud_rate:>6.2f}%")
         else:
-            print(f" {feat1} veya {feat2} bulunamadı, atlanıyor...")
-    
+            print(f" {feat1} or {feat2} not found, skipping...")
+
     print()
-    print(f"{'='*80}")
-    print(f" Toplam {len(created_features)} yeni özellik oluşturuldu!")
-    print(f"{'='*80}\n")
-    
-    # Oluşturulan özelliklerin listesini döndür
+    print("="*80)
+    print(f" Total {len(created_features)} new features created!")
+    print("="*80 + "\n")
+
+    # Return the list of created features
     df.created_interaction_features = created_features
-    
+
     return df
 
 
