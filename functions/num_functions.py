@@ -7,6 +7,8 @@ from scipy.stats import mannwhitneyu, kstest ,ks_2samp
 import warnings
 from scipy.cluster.hierarchy import linkage, fcluster
 from scipy.spatial.distance import squareform
+from scipy.stats import mannwhitneyu, kstest
+import warnings
 
 warnings.filterwarnings('ignore')
 
@@ -66,6 +68,13 @@ def get_numerical_summary(df, target='isFraud', exclude_cols=None):
     print(f"Features with strong correlation (|r| > 0.1): {(abs(summary_df['Corr_with_Target']) > 0.1).sum()}")
     
     return summary_df
+
+
+import numpy as np
+import pandas as pd
+from scipy.stats import ks_2samp, mannwhitneyu
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 def test_feature_discrimination(df, columns, target='isFraud', test='ks', 
                                 min_samples=30, alpha=0.05):
@@ -491,6 +500,15 @@ def correlation_heatmap(df, columns=None, target='isFraud', method='pearson',
     #                 'Feature_2': corr_matrix.columns[j],
     #                 'Correlation': corr_matrix.iloc[i, j]
     #             })
+    high_corr_pairs = []
+    for i in range(len(corr_matrix.columns)):
+        for j in range(i+1, len(corr_matrix.columns)):
+            if abs(corr_matrix.iloc[i, j]) > 0.7:
+                high_corr_pairs.append({
+                    'Feature_1': corr_matrix.columns[i],
+                    'Feature_2': corr_matrix.columns[j],
+                    'Correlation': corr_matrix.iloc[i, j]
+                })
     
     # if high_corr_pairs:
     #     print("\nWarning: High correlation pairs (|r| > 0.7) - Potential multicollinearity:")
