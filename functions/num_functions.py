@@ -3,10 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
-from scipy.stats import mannwhitneyu, kstest ,ks_2samp
+from scipy.stats import mannwhitneyu, kstest
 import warnings
-from scipy.cluster.hierarchy import linkage, fcluster
-from scipy.spatial.distance import squareform
 
 warnings.filterwarnings('ignore')
 
@@ -66,6 +64,13 @@ def get_numerical_summary(df, target='isFraud', exclude_cols=None):
     print(f"Features with strong correlation (|r| > 0.1): {(abs(summary_df['Corr_with_Target']) > 0.1).sum()}")
     
     return summary_df
+
+
+import numpy as np
+import pandas as pd
+from scipy.stats import ks_2samp, mannwhitneyu
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 def test_feature_discrimination(df, columns, target='isFraud', test='ks', 
                                 min_samples=30, alpha=0.05):
@@ -436,10 +441,6 @@ def correlation_heatmap(df, columns=None, target='isFraud', method='pearson',
     
     Returns:
         DataFrame: Correlation matrix
-    
-    Example:
-        >>> # Show top 20 features most correlated with fraud
-        >>> corr_matrix = correlation_heatmap(train_df, top_n=20)
     """
     if columns is None:
         columns = df.select_dtypes(include=[np.number]).columns.tolist()
@@ -482,15 +483,15 @@ def correlation_heatmap(df, columns=None, target='isFraud', method='pearson',
     plt.show()
     
     # Print high correlations (potential multicollinearity)
-    # high_corr_pairs = []
-    # for i in range(len(corr_matrix.columns)):
-    #     for j in range(i+1, len(corr_matrix.columns)):
-    #         if abs(corr_matrix.iloc[i, j]) > 0.7:
-    #             high_corr_pairs.append({
-    #                 'Feature_1': corr_matrix.columns[i],
-    #                 'Feature_2': corr_matrix.columns[j],
-    #                 'Correlation': corr_matrix.iloc[i, j]
-    #             })
+    high_corr_pairs = []
+    for i in range(len(corr_matrix.columns)):
+        for j in range(i+1, len(corr_matrix.columns)):
+            if abs(corr_matrix.iloc[i, j]) > 0.7:
+                high_corr_pairs.append({
+                    'Feature_1': corr_matrix.columns[i],
+                    'Feature_2': corr_matrix.columns[j],
+                    'Correlation': corr_matrix.iloc[i, j]
+                })
     
     # if high_corr_pairs:
     #     print("\nWarning: High correlation pairs (|r| > 0.7) - Potential multicollinearity:")
@@ -500,7 +501,7 @@ def correlation_heatmap(df, columns=None, target='isFraud', method='pearson',
     return corr_matrix
 
 
-# aşağıdaki ikisi v_col içindir ! ikiledi nedenini bilmiyorum ! 
+# aşağıdaki ikisi v_col içindir !
 def group_by_missing_pattern(df, columns):
     """
     Groups columns that share the exact same missing-value pattern.
@@ -583,155 +584,6 @@ def group_by_missing_pattern(df, columns):
         }
 
     return pattern_groups
-
-
-def get_correlation_groups(df, cols, threshold=0.95, method='complete'):
-    """
-    Group features by correlation using hierarchical clustering.
-    
-    Args:
-        df: DataFrame
-        cols: List of columns to analyze
-        threshold: Correlation threshold (default 0.95)
-        method: Linkage method ('complete', 'single', 'average')
-    
-    Returns:
-        list: List of groups, each group is a list of correlated features
-    """
-    
-    if len(cols) <= 1:
-        return [[col] for col in cols]
-    
-    valid_cols = [col for col in cols if col in df.columns]
-    if len(valid_cols) == 0:
-        return []
-    
-    try:
-        corr_matrix = df[valid_cols].corr(method='pearson').abs()
-        if corr_matrix.isnull().any().any():
-            corr_matrix = corr_matrix.fillna(0)
-        
-        distance_matrix = 1 - corr_matrix
-        condensed_dist = squareform(distance_matrix, checks=False)
-        linkage_matrix = linkage(condensed_dist, method=method)
-        distance_threshold = 1 - threshold
-        cluster_labels = fcluster(linkage_matrix, distance_threshold, criterion='distance')
-        
-        groups_dict = {}
-        for col, label in zip(valid_cols, cluster_labels):
-            if label not in groups_dict:
-                groups_dict[label] = []
-            groups_dict[label].append(col)
-        
-        groups = list(groups_dict.values())
-        
-        # Print only large groups
-        large_groups = [g for g in groups if len(g) > 1]
-        if large_groups:
-            print(f"\nCorrelation Groups (threshold={threshold}):")
-            for i, group in enumerate(sorted(large_groups, key=len, reverse=True)[:5], 1):
-                avg_corr = corr_matrix.loc[group, group].mean().mean()
-                print(f"   {i}. Group: {len(group)} features -> {group[:5]}{'...' if len(group) > 5 else ''}")
-                print(f"      Avg correlation: {avg_corr:.3f}")
-        
-        return groups
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        return [[col] for col in valid_cols]
-
-
-def select_representatives_by_ks(df, groups, target='isFraud', min_samples=30):
-    """
-    Select best representative from each correlation group using KS test.
-    
-    Args:
-        df: DataFrame
-        groups: Output from get_correlation_groups()
-        target: Target variable (default 'isFraud')
-        min_samples: Minimum samples for KS test
-    
-    Returns:
-        tuple: (representative_list, details_df)
-    """
-    
-    representatives = []
-    selection_details = []
-    
-    for group_id, group in enumerate(groups, start=1):
-        if len(group) == 1:
-            representatives.append(group[0])
-            selection_details.append({
-                'Group_ID': group_id,
-                'Group_Size': 1,
-                'Representative': group[0],
-                'Selection_Method': 'Single',
-                'KS_Stat': np.nan,
-                'P_Value': np.nan
-            })
-            continue
-        
-        try:
-            ks_results = test_feature_discrimination(
-                df, group, target=target, 
-                test='ks', min_samples=min_samples
-            )
-            
-            if not ks_results.empty:
-                best_feature = ks_results.iloc[0]['Feature']
-                best_ks = ks_results.iloc[0]['Test_Stat']
-                best_p = ks_results.iloc[0]['P_Value']
-                
-                representatives.append(best_feature)
-                selection_details.append({
-                    'Group_ID': group_id,
-                    'Group_Size': len(group),
-                    'Representative': best_feature,
-                    'Selection_Method': 'KS_Test',
-                    'KS_Stat': best_ks,
-                    'P_Value': best_p
-                })
-            else:
-                missing_rates = df[group].isnull().mean()
-                fallback = missing_rates.idxmin()
-                representatives.append(fallback)
-                selection_details.append({
-                    'Group_ID': group_id,
-                    'Group_Size': len(group),
-                    'Representative': fallback,
-                    'Selection_Method': 'Fallback',
-                    'KS_Stat': np.nan,
-                    'P_Value': np.nan
-                })
-        
-        except Exception as e:
-            fallback = group[0]
-            representatives.append(fallback)
-            selection_details.append({
-                'Group_ID': group_id,
-                'Group_Size': len(group),
-                'Representative': fallback,
-                'Selection_Method': 'Error',
-                'KS_Stat': np.nan,
-                'P_Value': np.nan
-            })
-    
-    details_df = pd.DataFrame(selection_details)
-    
-    # Print selected representatives for multi-feature groups only
-    multi_groups = details_df[details_df['Group_Size'] > 1]
-    if not multi_groups.empty:
-        print(f"\nSelected Representatives from {len(multi_groups)} groups:")
-        for _, row in multi_groups.iterrows():
-            if pd.notna(row['KS_Stat']):
-                print(f"   Group {row['Group_ID']} ({row['Group_Size']} features): {row['Representative']} (KS={row['KS_Stat']:.3f})")
-            else:
-                print(f"   Group {row['Group_ID']} ({row['Group_Size']} features): {row['Representative']} (Fallback)")
-    
-    return representatives, details_df
-
-
-
 
 
 
