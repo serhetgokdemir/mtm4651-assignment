@@ -7,6 +7,8 @@ from scipy import stats
 from scipy.stats import chi2_contingency
 from itertools import combinations
 import warnings
+from sklearn.preprocessing import OneHotEncoder , LabelEncoder
+
 
 warnings.filterwarnings('ignore')
 
@@ -782,6 +784,190 @@ def create_interaction_features_auto(df, top_combos_df, top_n=10, min_fraud_rate
 
     return df
 
+
+def apply_label_encoding(df, columns, encoder_dict=None, handle_unknown='use_default'):
+    """
+    Apply Label Encoding - for ordinal or binary categorical variables
+    
+    Parameters:
+    -----------
+    df : DataFrame
+        Data to be encoded
+    columns : list
+        Column names to encode
+    encoder_dict : dict, optional
+        Pre-fitted encoders (for test data)
+        If None, creates new encoders (for train data)
+    handle_unknown : str, default='use_default'
+        How to handle new categories in test set?
+        'use_default': Assigns -1
+        'error': Raises error
+    
+    Returns:
+    --------
+    df_encoded : DataFrame
+        Encoded data
+    encoder_dict : dict
+        Encoder object for each column
+    
+    Example Usage:
+    ---------------
+    # Train
+    df_train, encoders = apply_label_encoding(df_train, ['ProductCD', 'card4'])
+    
+    # Test
+    df_test, _ = apply_label_encoding(df_test, ['ProductCD', 'card4'], 
+                                      encoder_dict=encoders)
+    """
+    df_encoded = df.copy()
+    
+    # Create new encoder (train) or use existing one (test)
+    if encoder_dict is None:
+        encoder_dict = {}
+        is_training = True
+    else:
+        is_training = False
+    
+    for col in columns:
+        if col not in df.columns:
+            print(f"Warning: Column '{col}' not found in dataframe, skipped.")
+            continue
+        
+        if is_training:
+            # Train: Create and fit new encoder
+            le = LabelEncoder()
+            df_encoded[col] = le.fit_transform(df[col].astype(str))
+            encoder_dict[col] = le
+            print(f"Encoded '{col}': {len(le.classes_)} unique values")
+        else:
+            # Test: Use existing encoder
+            le = encoder_dict[col]
+            
+            # Handle new categories
+            if handle_unknown == 'use_default':
+                # Encode known categories, assign -1 to unknown ones
+                known_mask = df[col].astype(str).isin(le.classes_)
+                df_encoded.loc[known_mask, col] = le.transform(
+                    df.loc[known_mask, col].astype(str)
+                )
+                df_encoded.loc[~known_mask, col] = -1
+                
+                unknown_count = (~known_mask).sum()
+                if unknown_count > 0:
+                    print(f"Warning: '{col}' has {unknown_count} new categories, assigned -1")
+            else:
+                # Raise error
+                df_encoded[col] = le.transform(df[col].astype(str))
+    
+    return df_encoded, encoder_dict
+
+def apply_frequency_encoding(df, columns, freq_dict=None, normalize=False, 
+                             handle_unknown='zero'):
+    """
+    Apply Frequency Encoding - replaces categories with their frequency counts
+    
+    Parameters:
+    -----------
+    df : DataFrame
+        Data to be encoded
+    columns : list
+        Column names to encode
+    freq_dict : dict, optional
+        Pre-computed frequency mappings (for test data)
+        If None, computes from current data (for train data)
+    normalize : bool, default=False
+        If True, returns relative frequency (percentage)
+        If False, returns absolute count
+    handle_unknown : str, default='zero'
+        How to handle new categories in test set?
+        'zero': Assigns 0
+        'min': Assigns minimum frequency from train
+        'mean': Assigns mean frequency from train
+    
+    Returns:
+    --------
+    df_encoded : DataFrame
+        Encoded data
+    freq_dict : dict
+        Frequency mapping for each column
+    
+    Example Usage:
+    ---------------
+    # Train
+    df_train, freq_maps = apply_frequency_encoding(df_train, ['card1', 'addr1'])
+    
+    # Test
+    df_test, _ = apply_frequency_encoding(df_test, ['card1', 'addr1'], 
+                                          freq_dict=freq_maps)
+    
+    Notes:
+    ------
+    - Simple but effective for high cardinality features
+    - Works well with tree-based models
+    - Can capture popularity/rarity of categories
+    - No dimensionality increase (1 column -> 1 column)
+    """
+    df_encoded = df.copy()
+    
+    # Create new freq_dict (train) or use existing one (test)
+    if freq_dict is None:
+        freq_dict = {}
+        is_training = True
+    else:
+        is_training = False
+    
+    for col in columns:
+        if col not in df.columns:
+            print(f"Warning: Column '{col}' not found in dataframe, skipped.")
+            continue
+        
+        if is_training:
+            # Train: Compute frequency mapping
+            value_counts = df[col].value_counts()
+            
+            if normalize:
+                # Relative frequency (percentage)
+                freq_map = (value_counts / len(df)).to_dict()
+            else:
+                # Absolute count
+                freq_map = value_counts.to_dict()
+            
+            freq_dict[col] = {
+                'mapping': freq_map,
+                'min_freq': min(freq_map.values()),
+                'mean_freq': np.mean(list(freq_map.values()))
+            }
+            
+            # Apply encoding
+            df_encoded[col] = df[col].map(freq_map)
+            
+            print(f"Encoded '{col}': {len(freq_map)} unique values")
+            print(f"  Frequency range: {min(freq_map.values()):.4f} - {max(freq_map.values()):.4f}")
+        else:
+            # Test: Use existing frequency mapping
+            freq_map = freq_dict[col]['mapping']
+            min_freq = freq_dict[col]['min_freq']
+            mean_freq = freq_dict[col]['mean_freq']
+            
+            # Map values
+            df_encoded[col] = df[col].map(freq_map)
+            
+            # Handle unknown categories
+            unknown_mask = df_encoded[col].isna()
+            unknown_count = unknown_mask.sum()
+            
+            if unknown_count > 0:
+                if handle_unknown == 'zero':
+                    df_encoded.loc[unknown_mask, col] = 0
+                elif handle_unknown == 'min':
+                    df_encoded.loc[unknown_mask, col] = min_freq
+                elif handle_unknown == 'mean':
+                    df_encoded.loc[unknown_mask, col] = mean_freq
+                
+                print(f"Warning: '{col}' has {unknown_count} unknown categories")
+                print(f"  Assigned value: {handle_unknown}")
+    
+    return df_encoded, freq_dict
 
 if __name__ == '__main__':
     print("This file contains categorical analysis functions.")
