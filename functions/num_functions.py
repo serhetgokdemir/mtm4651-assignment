@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
-from scipy.stats import mannwhitneyu, kstest
+from scipy.stats import mannwhitneyu, kstest , ks_2samp
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -65,12 +65,6 @@ def get_numerical_summary(df, target='isFraud', exclude_cols=None):
     
     return summary_df
 
-
-import numpy as np
-import pandas as pd
-from scipy.stats import ks_2samp, mannwhitneyu
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 def test_feature_discrimination(df, columns, target='isFraud', test='ks', 
                                 min_samples=30, alpha=0.05):
