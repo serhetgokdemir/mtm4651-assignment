@@ -704,7 +704,7 @@ def scan_all_bivariate_combinations(df, feature_list, target='isFraud',
             print(f" Error with {f1} x {f2}: {str(e)}")
             continue
 
-        if idx % 10 == 0:
+        if idx % 100 == 0:
             print(f"Progress: {idx}/{total_pairs} pairs processed...")
 
     results_df = pd.DataFrame(results)
@@ -774,10 +774,10 @@ def create_interaction_features_auto(df, top_combos_df, top_n=10, min_fraud_rate
         else:
             print(f" {feat1} or {feat2} not found, skipping...")
 
-    print()
-    print("="*80)
-    print(f" Total {len(created_features)} new features created!")
-    print("="*80 + "\n")
+    # print()
+    # print("="*80)
+    # print(f" Total {len(created_features)} new features created!")
+    # print("="*80 + "\n")
 
     # Return the list of created features
     df.created_interaction_features = created_features
@@ -838,7 +838,7 @@ def apply_label_encoding(df, columns, encoder_dict=None, handle_unknown='use_def
             le = LabelEncoder()
             df_encoded[col] = le.fit_transform(df[col].astype(str))
             encoder_dict[col] = le
-            print(f"Encoded '{col}': {len(le.classes_)} unique values")
+            # print(f"Encoded '{col}': {len(le.classes_)} unique values")
         else:
             # Test: Use existing encoder
             le = encoder_dict[col]
@@ -941,8 +941,8 @@ def apply_frequency_encoding(df, columns, freq_dict=None, normalize=False,
             # Apply encoding
             df_encoded[col] = df[col].map(freq_map)
             
-            print(f"Encoded '{col}': {len(freq_map)} unique values")
-            print(f"  Frequency range: {min(freq_map.values()):.4f} - {max(freq_map.values()):.4f}")
+            # print(f"Encoded '{col}': {len(freq_map)} unique values")
+            # print(f"  Frequency range: {min(freq_map.values()):.4f} - {max(freq_map.values()):.4f}")
         else:
             # Test: Use existing frequency mapping
             freq_map = freq_dict[col]['mapping']
