@@ -310,7 +310,6 @@ def analyze_screen_resolution(df):
         return
 
     resolution_split = df_res['id_33'].astype(str).str.split('x', expand=True)
-
     if resolution_split.shape[1] == 2:
         df_res['screen_width'] = pd.to_numeric(resolution_split[0], errors='coerce')
         df_res['screen_height'] = pd.to_numeric(resolution_split[1], errors='coerce')
@@ -318,6 +317,7 @@ def analyze_screen_resolution(df):
 
         top_resolutions = df_res['id_33'].value_counts().head(15).index
         df_plot = df_res[df_res['id_33'].isin(top_resolutions)]
+
 
         plt.figure(figsize=(16, 8))
         res_summary = df_plot.groupby('id_33')['isFraud'].agg(['mean', 'count']).reset_index()
@@ -439,31 +439,31 @@ def analyze_time_categories(df):
     time_features = ['hour', 'day_of_week']
     titles = ['Hour of Day (0-23)', 'Day of Week (0-6)']
 
-    sns.set_style('whitegrid')
-    fig, axes = plt.subplots(2, 1, figsize=(16, 12))
+    # sns.set_style('whitegrid')
+    # fig, axes = plt.subplots(2, 1, figsize=(16, 12))
 
-    for i, col in enumerate(time_features):
-        ax1 = axes[i]
+    # for i, col in enumerate(time_features):
+    #     ax1 = axes[i]
 
-        total_count = df[col].value_counts().sort_index()
-        fraud_rate = df.groupby(col)['isFraud'].mean() * 100
-        x_indexes = total_count.index
+    #     total_count = df[col].value_counts().sort_index()
+    #     fraud_rate = df.groupby(col)['isFraud'].mean() * 100
+    #     x_indexes = total_count.index
 
-        ax1.bar(x_indexes, total_count, color=sns.color_palette('pastel')[0],
-                alpha=0.7, label='Transaction Count')
-        ax1.set_ylabel('Transaction Count (Volume)', fontsize=12, color='gray')
-        ax1.set_xlabel(titles[i], fontsize=12)
+    #     ax1.bar(x_indexes, total_count, color=sns.color_palette('pastel')[0],
+    #             alpha=0.7, label='Transaction Count')
+    #     ax1.set_ylabel('Transaction Count (Volume)', fontsize=12, color='gray')
+    #     ax1.set_xlabel(titles[i], fontsize=12)
 
-        ax2 = ax1.twinx()
-        ax2.plot(x_indexes, fraud_rate, color='#ff7f50', marker='o',
-                 linewidth=2.5, label='Fraud Rate (%)')
-        ax2.set_ylabel('Fraud Rate (%)', fontsize=12, color='#ff7f50')
+    #     ax2 = ax1.twinx()
+    #     ax2.plot(x_indexes, fraud_rate, color='#ff7f50', marker='o',
+    #              linewidth=2.5, label='Fraud Rate (%)')
+    #     ax2.set_ylabel('Fraud Rate (%)', fontsize=12, color='#ff7f50')
 
-        ax1.set_title(f'Fraud Analysis by {titles[i]}', fontsize=15, fontweight='bold')
-        ax2.grid(False)
+    #     ax1.set_title(f'Fraud Analysis by {titles[i]}', fontsize=15, fontweight='bold')
+    #     ax2.grid(False)
 
-    plt.tight_layout()
-    plt.show()
+    # plt.tight_layout()
+    # plt.show()
 
     return df
 

@@ -11,3 +11,8 @@ __pycache__/
 
 
 artifacts/
+
+
+notebooks/
+test.ipynb
+submission.ipynb
